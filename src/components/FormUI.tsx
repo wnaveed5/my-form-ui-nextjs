@@ -85,17 +85,18 @@ function DraggableField({ field }: DraggableFieldProps) {
 }
 
 /**
- * FormUI component that renders a tabbed form with draggable fields
+ * FormUI component that renders separate tabbed forms with independent drag and drop areas
  * 
  * Features:
- * - Tabbed interface with General and Settings sections
- * - Drag and drop field reordering
+ * - Independent tabs with separate drag and drop areas
+ * - Each tab maintains its own state and field order
  * - Accessible form controls
  * - Error handling for drag operations
  * 
- * @returns A form component with drag and drop functionality
+ * @returns A form component with independent tabbed drag and drop functionality
  */
 export function FormUI() {
+  // Separate state for each tab
   const [generalFields, setGeneralFields] = useState<Field[]>([
     { id: "name", label: "Name" },
     { id: "username", label: "Username" },
@@ -107,7 +108,9 @@ export function FormUI() {
     { id: "location", label: "Location" },
   ]);
 
-  const [error, setError] = useState<string | null>(null);
+  // Separate error states for each tab
+  const [generalError, setGeneralError] = useState<string | null>(null);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
 
   // Memoize field IDs for performance
   const generalFieldIds = useMemo(() => generalFields.map(f => f.id), [generalFields]);
@@ -137,10 +140,10 @@ export function FormUI() {
         return newItems;
       });
 
-      setError(null);
+      setGeneralError(null);
     } catch (err) {
-      console.error('Error during field reordering:', err);
-      setError('Failed to reorder fields. Please try again.');
+      console.error('Error during general field reordering:', err);
+      setGeneralError('Failed to reorder general fields. Please try again.');
     }
   }, []);
 
@@ -168,27 +171,34 @@ export function FormUI() {
         return newItems;
       });
 
-      setError(null);
+      setSettingsError(null);
     } catch (err) {
-      console.error('Error during field reordering:', err);
-      setError('Failed to reorder fields. Please try again.');
+      console.error('Error during settings field reordering:', err);
+      setSettingsError('Failed to reorder settings fields. Please try again.');
     }
   }, []);
 
   /**
-   * Resets the form fields to their original order
+   * Resets the general fields to their original order
    */
-  const resetFields = useCallback(() => {
+  const resetGeneralFields = useCallback(() => {
     setGeneralFields([
       { id: "name", label: "Name" },
       { id: "username", label: "Username" },
     ]);
+    setGeneralError(null);
+  }, []);
+
+  /**
+   * Resets the settings fields to their original order
+   */
+  const resetSettingsFields = useCallback(() => {
     setSettingsFields([
       { id: "email", label: "Email" },
       { id: "phone", label: "Phone" },
       { id: "location", label: "Location" },
     ]);
-    setError(null);
+    setSettingsError(null);
   }, []);
 
   return (
@@ -199,15 +209,16 @@ export function FormUI() {
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
         
+        {/* General Tab - Independent Drag and Drop Area */}
         <TabsContent value="general" className="p-4 border rounded-md">
-          {error && (
+          {generalError && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-red-700 text-sm">{error}</p>
+              <p className="text-red-700 text-sm">{generalError}</p>
               <button
-                onClick={resetFields}
+                onClick={resetGeneralFields}
                 className="mt-2 text-red-600 hover:text-red-800 text-sm underline"
               >
-                Reset to original order
+                Reset general fields to original order
               </button>
             </div>
           )}
@@ -218,19 +229,19 @@ export function FormUI() {
             accessibility={{
               announcements: {
                 onDragStart({ active }) {
-                  return `Picked up ${active.id} field`;
+                  return `Picked up ${active.id} field in general tab`;
                 },
                 onDragOver({ active, over }) {
-                  return `Moving ${active.id} field over ${over?.id || 'drop zone'}`;
+                  return `Moving ${active.id} field over ${over?.id || 'drop zone'} in general tab`;
                 },
                 onDragEnd({ active, over }) {
                   if (over && active.id !== over.id) {
-                    return `Dropped ${active.id} field into new position`;
+                    return `Dropped ${active.id} field into new position in general tab`;
                   }
-                  return `Dropped ${active.id} field`;
+                  return `Dropped ${active.id} field in general tab`;
                 },
                 onDragCancel({ active }) {
-                  return `Cancelled dragging ${active.id} field`;
+                  return `Cancelled dragging ${active.id} field in general tab`;
                 },
               },
             }}
@@ -239,7 +250,7 @@ export function FormUI() {
               <div 
                 className="space-y-4"
                 role="region"
-                aria-label="Draggable form fields"
+                aria-label="Draggable general form fields"
               >
                 {generalFields.map((field) => (
                   <DraggableField key={field.id} field={field} />
@@ -249,19 +260,20 @@ export function FormUI() {
           </DndContext>
           
           <div className="mt-4 text-sm text-gray-600">
-            <p>💡 Tip: Drag the ☰ handle to reorder fields</p>
+            <p>💡 Tip: Drag the ☰ handle to reorder general fields</p>
           </div>
         </TabsContent>
 
+        {/* Settings Tab - Independent Drag and Drop Area */}
         <TabsContent value="settings" className="p-4 border rounded-md">
-          {error && (
+          {settingsError && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-red-700 text-sm">{error}</p>
+              <p className="text-red-700 text-sm">{settingsError}</p>
               <button
-                onClick={resetFields}
+                onClick={resetSettingsFields}
                 className="mt-2 text-red-600 hover:text-red-800 text-sm underline"
               >
-                Reset to original order
+                Reset settings fields to original order
               </button>
             </div>
           )}
@@ -272,19 +284,19 @@ export function FormUI() {
             accessibility={{
               announcements: {
                 onDragStart({ active }) {
-                  return `Picked up ${active.id} field`;
+                  return `Picked up ${active.id} field in settings tab`;
                 },
                 onDragOver({ active, over }) {
-                  return `Moving ${active.id} field over ${over?.id || 'drop zone'}`;
+                  return `Moving ${active.id} field over ${over?.id || 'drop zone'} in settings tab`;
                 },
                 onDragEnd({ active, over }) {
                   if (over && active.id !== over.id) {
-                    return `Dropped ${active.id} field into new position`;
+                    return `Dropped ${active.id} field into new position in settings tab`;
                   }
-                  return `Dropped ${active.id} field`;
+                  return `Dropped ${active.id} field in settings tab`;
                 },
                 onDragCancel({ active }) {
-                  return `Cancelled dragging ${active.id} field`;
+                  return `Cancelled dragging ${active.id} field in settings tab`;
                 },
               },
             }}
@@ -293,7 +305,7 @@ export function FormUI() {
               <div 
                 className="space-y-4"
                 role="region"
-                aria-label="Draggable settings fields"
+                aria-label="Draggable settings form fields"
               >
                 {settingsFields.map((field) => (
                   <DraggableField key={field.id} field={field} />
