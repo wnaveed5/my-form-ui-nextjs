@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 interface Field {
   id: string;
   label: string;
+  tabId: string; // Track which tab the field belongs to
 }
 
 /**
@@ -27,7 +28,7 @@ interface DraggableFieldProps {
 /**
  * DraggableField component that renders a single form field with drag and drop functionality
  * 
- * @param field - The field object containing id and label
+ * @param field - The field object containing id, label, and tabId
  * @returns A draggable form field component
  */
 function DraggableField({ field }: DraggableFieldProps) {
@@ -85,120 +86,105 @@ function DraggableField({ field }: DraggableFieldProps) {
 }
 
 /**
- * FormUI component that renders separate tabbed forms with independent drag and drop areas
+ * FormUI component that renders separate tabbed forms with cross-tab drag and drop functionality
  * 
  * Features:
- * - Independent tabs with separate drag and drop areas
+ * - Independent tabs with cross-tab drag and drop areas
+ * - Fields can be moved between tabs
  * - Each tab maintains its own state and field order
  * - Accessible form controls
  * - Error handling for drag operations
  * 
- * @returns A form component with independent tabbed drag and drop functionality
+ * @returns A form component with cross-tab drag and drop functionality
  */
 export function FormUI() {
-  // Separate state for each tab
-  const [generalFields, setGeneralFields] = useState<Field[]>([
-    { id: "name", label: "Name" },
-    { id: "username", label: "Username" },
+  // Combined state for all fields with tab tracking
+  const [allFields, setAllFields] = useState<Field[]>([
+    // General tab fields
+    { id: "name", label: "Name", tabId: "general" },
+    { id: "username", label: "Username", tabId: "general" },
+    // Settings tab fields
+    { id: "email", label: "Email", tabId: "settings" },
+    { id: "phone", label: "Phone", tabId: "settings" },
+    { id: "location", label: "Location", tabId: "settings" },
   ]);
 
-  const [settingsFields, setSettingsFields] = useState<Field[]>([
-    { id: "email", label: "Email" },
-    { id: "phone", label: "Phone" },
-    { id: "location", label: "Location" },
-  ]);
-
-  // Separate error states for each tab
-  const [generalError, setGeneralError] = useState<string | null>(null);
-  const [settingsError, setSettingsError] = useState<string | null>(null);
+  // Error state for drag operations
+  const [error, setError] = useState<string | null>(null);
 
   // Memoize field IDs for performance
-  const generalFieldIds = useMemo(() => generalFields.map(f => f.id), [generalFields]);
-  const settingsFieldIds = useMemo(() => settingsFields.map(f => f.id), [settingsFields]);
+  const allFieldIds = useMemo(() => allFields.map(f => f.id), [allFields]);
+
+  // Get fields for each tab
+  const generalFields = useMemo(() => 
+    allFields.filter(field => field.tabId === "general"), [allFields]);
+  const settingsFields = useMemo(() => 
+    allFields.filter(field => field.tabId === "settings"), [allFields]);
 
   /**
-   * Handles the end of a drag operation for General tab
+   * Handles the end of a drag operation across all tabs
    */
-  const onGeneralDragEnd = useCallback((event: DragEndEvent) => {
+  const onDragEnd = useCallback((event: DragEndEvent) => {
     try {
       const { active, over } = event;
       
       if (!over || active.id === over.id) return;
 
-      setGeneralFields((items) => {
-        const oldIndex = items.findIndex((item) => item.id === active.id);
-        const newIndex = items.findIndex((item) => item.id === over.id);
-
-        if (oldIndex === -1 || newIndex === -1) {
-          throw new Error('Invalid field index during reordering');
+      setAllFields((items) => {
+        const activeField = items.find(item => item.id === active.id);
+        const overField = items.find(item => item.id === over.id);
+        
+        if (!activeField || !overField) {
+          throw new Error('Invalid field during reordering');
         }
 
         const newItems = [...items];
-        const [movedItem] = newItems.splice(oldIndex, 1);
-        newItems.splice(newIndex, 0, movedItem);
-
+        
+        // Remove the active field from its current position
+        const activeIndex = newItems.findIndex(item => item.id === active.id);
+        if (activeIndex === -1) {
+          throw new Error('Active field not found');
+        }
+        
+        const [movedField] = newItems.splice(activeIndex, 1);
+        
+        // Find the target position
+        const overIndex = newItems.findIndex(item => item.id === over.id);
+        if (overIndex === -1) {
+          throw new Error('Target field not found');
+        }
+        
+        // Update the tabId if moving to a different tab
+        const targetTabId = overField.tabId;
+        movedField.tabId = targetTabId;
+        
+        // Insert at the new position
+        newItems.splice(overIndex, 0, movedField);
+        
         return newItems;
       });
 
-      setGeneralError(null);
+      setError(null);
     } catch (err) {
-      console.error('Error during general field reordering:', err);
-      setGeneralError('Failed to reorder general fields. Please try again.');
+      console.error('Error during cross-tab field reordering:', err);
+      setError('Failed to reorder fields. Please try again.');
     }
   }, []);
 
   /**
-   * Handles the end of a drag operation for Settings tab
+   * Resets all fields to their original positions
    */
-  const onSettingsDragEnd = useCallback((event: DragEndEvent) => {
-    try {
-      const { active, over } = event;
-      
-      if (!over || active.id === over.id) return;
-
-      setSettingsFields((items) => {
-        const oldIndex = items.findIndex((item) => item.id === active.id);
-        const newIndex = items.findIndex((item) => item.id === over.id);
-
-        if (oldIndex === -1 || newIndex === -1) {
-          throw new Error('Invalid field index during reordering');
-        }
-
-        const newItems = [...items];
-        const [movedItem] = newItems.splice(oldIndex, 1);
-        newItems.splice(newIndex, 0, movedItem);
-
-        return newItems;
-      });
-
-      setSettingsError(null);
-    } catch (err) {
-      console.error('Error during settings field reordering:', err);
-      setSettingsError('Failed to reorder settings fields. Please try again.');
-    }
-  }, []);
-
-  /**
-   * Resets the general fields to their original order
-   */
-  const resetGeneralFields = useCallback(() => {
-    setGeneralFields([
-      { id: "name", label: "Name" },
-      { id: "username", label: "Username" },
+  const resetAllFields = useCallback(() => {
+    setAllFields([
+      // General tab fields
+      { id: "name", label: "Name", tabId: "general" },
+      { id: "username", label: "Username", tabId: "general" },
+      // Settings tab fields
+      { id: "email", label: "Email", tabId: "settings" },
+      { id: "phone", label: "Phone", tabId: "settings" },
+      { id: "location", label: "Location", tabId: "settings" },
     ]);
-    setGeneralError(null);
-  }, []);
-
-  /**
-   * Resets the settings fields to their original order
-   */
-  const resetSettingsFields = useCallback(() => {
-    setSettingsFields([
-      { id: "email", label: "Email" },
-      { id: "phone", label: "Phone" },
-      { id: "location", label: "Location" },
-    ]);
-    setSettingsError(null);
+    setError(null);
   }, []);
 
   return (
@@ -209,115 +195,110 @@ export function FormUI() {
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
         
-        {/* General Tab - Independent Drag and Drop Area */}
-        <TabsContent value="general" className="p-4 border rounded-md">
-          {generalError && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-red-700 text-sm">{generalError}</p>
-              <button
-                onClick={resetGeneralFields}
-                className="mt-2 text-red-600 hover:text-red-800 text-sm underline"
-              >
-                Reset general fields to original order
-              </button>
-            </div>
-          )}
-          
-          <DndContext 
-            collisionDetection={closestCenter} 
-            onDragEnd={onGeneralDragEnd}
-            accessibility={{
-              announcements: {
-                onDragStart({ active }) {
-                  return `Picked up ${active.id} field in general tab`;
-                },
-                onDragOver({ active, over }) {
-                  return `Moving ${active.id} field over ${over?.id || 'drop zone'} in general tab`;
-                },
-                onDragEnd({ active, over }) {
-                  if (over && active.id !== over.id) {
-                    return `Dropped ${active.id} field into new position in general tab`;
-                  }
-                  return `Dropped ${active.id} field in general tab`;
-                },
-                onDragCancel({ active }) {
-                  return `Cancelled dragging ${active.id} field in general tab`;
-                },
+        {/* Shared Drag Context for Cross-Tab Functionality */}
+        <DndContext 
+          collisionDetection={closestCenter} 
+          onDragEnd={onDragEnd}
+          accessibility={{
+            announcements: {
+              onDragStart({ active }) {
+                const field = allFields.find(f => f.id === active.id);
+                const tabName = field?.tabId === "general" ? "general" : "settings";
+                return `Picked up ${active.id} field from ${tabName} tab`;
               },
-            }}
-          >
-            <SortableContext items={generalFieldIds} strategy={verticalListSortingStrategy}>
+              onDragOver({ active, over }) {
+                const activeField = allFields.find(f => f.id === active.id);
+                const overField = allFields.find(f => f.id === over?.id);
+                const activeTab = activeField?.tabId === "general" ? "general" : "settings";
+                const overTab = overField?.tabId === "general" ? "general" : "settings";
+                
+                if (activeTab !== overTab) {
+                  return `Moving ${active.id} field from ${activeTab} tab to ${overTab} tab`;
+                }
+                return `Moving ${active.id} field over ${over?.id || 'drop zone'} in ${activeTab} tab`;
+              },
+              onDragEnd({ active, over }) {
+                const activeField = allFields.find(f => f.id === active.id);
+                const overField = allFields.find(f => f.id === over?.id);
+                const activeTab = activeField?.tabId === "general" ? "general" : "settings";
+                const overTab = overField?.tabId === "general" ? "general" : "settings";
+                
+                if (over && active.id !== over.id) {
+                  if (activeTab !== overTab) {
+                    return `Moved ${active.id} field from ${activeTab} tab to ${overTab} tab`;
+                  }
+                  return `Dropped ${active.id} field into new position in ${activeTab} tab`;
+                }
+                return `Dropped ${active.id} field`;
+              },
+              onDragCancel({ active }) {
+                const field = allFields.find(f => f.id === active.id);
+                const tabName = field?.tabId === "general" ? "general" : "settings";
+                return `Cancelled dragging ${active.id} field from ${tabName} tab`;
+              },
+            },
+          }}
+        >
+          <SortableContext items={allFieldIds} strategy={verticalListSortingStrategy}>
+            {/* General Tab */}
+            <TabsContent value="general" className="p-4 border rounded-md">
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                  <p className="text-red-700 text-sm">{error}</p>
+                  <button
+                    onClick={resetAllFields}
+                    className="mt-2 text-red-600 hover:text-red-800 text-sm underline"
+                  >
+                    Reset all fields to original order
+                  </button>
+                </div>
+              )}
+              
               <div 
                 className="space-y-4"
                 role="region"
-                aria-label="Draggable general form fields"
+                aria-label="Draggable general form fields - can be moved to settings tab"
               >
                 {generalFields.map((field) => (
                   <DraggableField key={field.id} field={field} />
                 ))}
               </div>
-            </SortableContext>
-          </DndContext>
-          
-          <div className="mt-4 text-sm text-gray-600">
-            <p>💡 Tip: Drag the ☰ handle to reorder general fields</p>
-          </div>
-        </TabsContent>
+              
+              <div className="mt-4 text-sm text-gray-600">
+                <p>💡 Tip: Drag fields between tabs or reorder within this tab</p>
+              </div>
+            </TabsContent>
 
-        {/* Settings Tab - Independent Drag and Drop Area */}
-        <TabsContent value="settings" className="p-4 border rounded-md">
-          {settingsError && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-red-700 text-sm">{settingsError}</p>
-              <button
-                onClick={resetSettingsFields}
-                className="mt-2 text-red-600 hover:text-red-800 text-sm underline"
-              >
-                Reset settings fields to original order
-              </button>
-            </div>
-          )}
-          
-          <DndContext 
-            collisionDetection={closestCenter} 
-            onDragEnd={onSettingsDragEnd}
-            accessibility={{
-              announcements: {
-                onDragStart({ active }) {
-                  return `Picked up ${active.id} field in settings tab`;
-                },
-                onDragOver({ active, over }) {
-                  return `Moving ${active.id} field over ${over?.id || 'drop zone'} in settings tab`;
-                },
-                onDragEnd({ active, over }) {
-                  if (over && active.id !== over.id) {
-                    return `Dropped ${active.id} field into new position in settings tab`;
-                  }
-                  return `Dropped ${active.id} field in settings tab`;
-                },
-                onDragCancel({ active }) {
-                  return `Cancelled dragging ${active.id} field in settings tab`;
-                },
-              },
-            }}
-          >
-            <SortableContext items={settingsFieldIds} strategy={verticalListSortingStrategy}>
+            {/* Settings Tab */}
+            <TabsContent value="settings" className="p-4 border rounded-md">
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                  <p className="text-red-700 text-sm">{error}</p>
+                  <button
+                    onClick={resetAllFields}
+                    className="mt-2 text-red-600 hover:text-red-800 text-sm underline"
+                  >
+                    Reset all fields to original order
+                  </button>
+                </div>
+              )}
+              
               <div 
                 className="space-y-4"
                 role="region"
-                aria-label="Draggable settings form fields"
+                aria-label="Draggable settings form fields - can be moved to general tab"
               >
                 {settingsFields.map((field) => (
                   <DraggableField key={field.id} field={field} />
                 ))}
               </div>
-            </SortableContext>
-          </DndContext>
-          
-          <div className="mt-4 text-sm text-gray-600">
-            <p>💡 Tip: Drag the ☰ handle to reorder settings fields</p>
-          </div>
-        </TabsContent>
+              
+              <div className="mt-4 text-sm text-gray-600">
+                <p>💡 Tip: Drag fields between tabs or reorder within this tab</p>
+              </div>
+            </TabsContent>
+          </SortableContext>
+        </DndContext>
       </Tabs>
     </div>
   );
