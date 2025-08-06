@@ -16,12 +16,8 @@ export default function Home() {
       <div className="container mx-auto py-8 px-4">
         <header className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Form UI with Drag & Drop
+            Form UI
           </h1>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            Experience modern form design with interactive drag and drop field reordering. 
-            Built with Next.js, TypeScript, and shadcn/ui components.
-          </p>
         </header>
         
         <section aria-labelledby="form-heading">
@@ -30,12 +26,6 @@ export default function Home() {
           </div>
           <FormUI />
         </section>
-        
-        <footer className="mt-12 text-center text-sm text-gray-500">
-          <p>
-            Built with Next.js, TypeScript, Tailwind CSS, and shadcn/ui
-          </p>
-        </footer>
       </div>
     </main>
   );
