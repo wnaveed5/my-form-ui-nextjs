@@ -1,10 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import { DndContext, closestCenter, DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +28,41 @@ interface DraggableFieldProps {
  * @returns A draggable form field component
  */
 function DraggableField({ field }: DraggableFieldProps) {
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Only render drag-and-drop functionality on client side
+  if (!isClient) {
+    return (
+      <div className="flex items-center space-x-2 p-2 border rounded-md bg-white shadow-sm hover:shadow-md transition-shadow">
+        <div 
+          className="cursor-move text-gray-400 hover:text-gray-600 transition-colors"
+          aria-hidden="true"
+        >
+          ☰
+        </div>
+        <div className="flex-1">
+          <Label htmlFor={field.id}>{field.label}</Label>
+          <Input 
+            id={field.id} 
+            placeholder={`Enter ${field.label.toLowerCase()}`}
+            aria-describedby={`${field.id}-description`}
+          />
+          <div id={`${field.id}-description`} className="sr-only">
+            Input field for {field.label.toLowerCase()}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Dynamic import for client-side only
+  const { useSortable } = require('@dnd-kit/sortable');
+  const { CSS } = require('@dnd-kit/utilities');
+
   const {
     attributes,
     listeners,
@@ -98,6 +129,12 @@ function DraggableField({ field }: DraggableFieldProps) {
  * @returns A form component with cross-tab drag and drop functionality
  */
 export function FormUI() {
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   // Combined state for all fields with tab tracking
   const [allFields, setAllFields] = useState<Field[]>([
     // General tab fields
@@ -124,7 +161,7 @@ export function FormUI() {
   /**
    * Handles the end of a drag operation across all tabs
    */
-  const onDragEnd = useCallback((event: DragEndEvent) => {
+  const onDragEnd = useCallback((event: any) => {
     try {
       const { active, over } = event;
       
@@ -187,6 +224,66 @@ export function FormUI() {
     setError(null);
   }, []);
 
+  // Render without drag-and-drop on server side
+  if (!isClient) {
+    return (
+      <div className="p-4 max-w-2xl mx-auto">
+        <Tabs defaultValue="general" className="w-full">
+          <TabsList className="bg-blue-900 text-white">
+            <TabsTrigger value="general">General</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
+          </TabsList>
+          
+          {/* General Tab */}
+          <TabsContent value="general" className="p-4 border rounded-md">
+            <div className="space-y-4">
+              {generalFields.map((field) => (
+                <div key={field.id} className="flex items-center space-x-2 p-2 border rounded-md bg-white shadow-sm">
+                  <div className="text-gray-400">☰</div>
+                  <div className="flex-1">
+                    <Label htmlFor={field.id}>{field.label}</Label>
+                    <Input 
+                      id={field.id} 
+                      placeholder={`Enter ${field.label.toLowerCase()}`}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 text-sm text-gray-600">
+              <p>💡 Tip: Drag fields between tabs or reorder within this tab</p>
+            </div>
+          </TabsContent>
+
+          {/* Settings Tab */}
+          <TabsContent value="settings" className="p-4 border rounded-md">
+            <div className="space-y-4">
+              {settingsFields.map((field) => (
+                <div key={field.id} className="flex items-center space-x-2 p-2 border rounded-md bg-white shadow-sm">
+                  <div className="text-gray-400">☰</div>
+                  <div className="flex-1">
+                    <Label htmlFor={field.id}>{field.label}</Label>
+                    <Input 
+                      id={field.id} 
+                      placeholder={`Enter ${field.label.toLowerCase()}`}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 text-sm text-gray-600">
+              <p>💡 Tip: Drag fields between tabs or reorder within this tab</p>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+    );
+  }
+
+  // Dynamic imports for client-side only
+  const { DndContext, closestCenter } = require('@dnd-kit/core');
+  const { SortableContext, verticalListSortingStrategy } = require('@dnd-kit/sortable');
+
   return (
     <div className="p-4 max-w-2xl mx-auto">
       <Tabs defaultValue="general" className="w-full">
@@ -201,12 +298,12 @@ export function FormUI() {
           onDragEnd={onDragEnd}
           accessibility={{
             announcements: {
-              onDragStart({ active }) {
+              onDragStart({ active }: any) {
                 const field = allFields.find(f => f.id === active.id);
                 const tabName = field?.tabId === "general" ? "general" : "settings";
                 return `Picked up ${active.id} field from ${tabName} tab`;
               },
-              onDragOver({ active, over }) {
+              onDragOver({ active, over }: any) {
                 const activeField = allFields.find(f => f.id === active.id);
                 const overField = allFields.find(f => f.id === over?.id);
                 const activeTab = activeField?.tabId === "general" ? "general" : "settings";
@@ -217,7 +314,7 @@ export function FormUI() {
                 }
                 return `Moving ${active.id} field over ${over?.id || 'drop zone'} in ${activeTab} tab`;
               },
-              onDragEnd({ active, over }) {
+              onDragEnd({ active, over }: any) {
                 const activeField = allFields.find(f => f.id === active.id);
                 const overField = allFields.find(f => f.id === over?.id);
                 const activeTab = activeField?.tabId === "general" ? "general" : "settings";
@@ -231,7 +328,7 @@ export function FormUI() {
                 }
                 return `Dropped ${active.id} field`;
               },
-              onDragCancel({ active }) {
+              onDragCancel({ active }: any) {
                 const field = allFields.find(f => f.id === active.id);
                 const tabName = field?.tabId === "general" ? "general" : "settings";
                 return `Cancelled dragging ${active.id} field from ${tabName} tab`;
