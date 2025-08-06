@@ -88,7 +88,7 @@ function DraggableField({ field }: DraggableFieldProps) {
  * FormUI component that renders a tabbed form with draggable fields
  * 
  * Features:
- * - Tabbed interface with General section
+ * - Tabbed interface with General and Settings sections
  * - Drag and drop field reordering
  * - Accessible form controls
  * - Error handling for drag operations
@@ -96,28 +96,64 @@ function DraggableField({ field }: DraggableFieldProps) {
  * @returns A form component with drag and drop functionality
  */
 export function FormUI() {
-  const [fields, setFields] = useState<Field[]>([
+  const [generalFields, setGeneralFields] = useState<Field[]>([
     { id: "name", label: "Name" },
     { id: "username", label: "Username" },
+  ]);
+
+  const [settingsFields, setSettingsFields] = useState<Field[]>([
+    { id: "email", label: "Email" },
+    { id: "phone", label: "Phone" },
+    { id: "location", label: "Location" },
   ]);
 
   const [error, setError] = useState<string | null>(null);
 
   // Memoize field IDs for performance
-  const fieldIds = useMemo(() => fields.map(f => f.id), [fields]);
+  const generalFieldIds = useMemo(() => generalFields.map(f => f.id), [generalFields]);
+  const settingsFieldIds = useMemo(() => settingsFields.map(f => f.id), [settingsFields]);
 
   /**
-   * Handles the end of a drag operation
-   * 
-   * @param event - The drag end event from @dnd-kit
+   * Handles the end of a drag operation for General tab
    */
-  const onDragEnd = useCallback((event: DragEndEvent) => {
+  const onGeneralDragEnd = useCallback((event: DragEndEvent) => {
     try {
       const { active, over } = event;
       
       if (!over || active.id === over.id) return;
 
-      setFields((items) => {
+      setGeneralFields((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+
+        if (oldIndex === -1 || newIndex === -1) {
+          throw new Error('Invalid field index during reordering');
+        }
+
+        const newItems = [...items];
+        const [movedItem] = newItems.splice(oldIndex, 1);
+        newItems.splice(newIndex, 0, movedItem);
+
+        return newItems;
+      });
+
+      setError(null);
+    } catch (err) {
+      console.error('Error during field reordering:', err);
+      setError('Failed to reorder fields. Please try again.');
+    }
+  }, []);
+
+  /**
+   * Handles the end of a drag operation for Settings tab
+   */
+  const onSettingsDragEnd = useCallback((event: DragEndEvent) => {
+    try {
+      const { active, over } = event;
+      
+      if (!over || active.id === over.id) return;
+
+      setSettingsFields((items) => {
         const oldIndex = items.findIndex((item) => item.id === active.id);
         const newIndex = items.findIndex((item) => item.id === over.id);
 
@@ -143,9 +179,14 @@ export function FormUI() {
    * Resets the form fields to their original order
    */
   const resetFields = useCallback(() => {
-    setFields([
+    setGeneralFields([
       { id: "name", label: "Name" },
       { id: "username", label: "Username" },
+    ]);
+    setSettingsFields([
+      { id: "email", label: "Email" },
+      { id: "phone", label: "Phone" },
+      { id: "location", label: "Location" },
     ]);
     setError(null);
   }, []);
@@ -155,7 +196,9 @@ export function FormUI() {
       <Tabs defaultValue="general" className="w-full">
         <TabsList className="bg-blue-900 text-white">
           <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
+        
         <TabsContent value="general" className="p-4 border rounded-md">
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
@@ -171,7 +214,7 @@ export function FormUI() {
           
           <DndContext 
             collisionDetection={closestCenter} 
-            onDragEnd={onDragEnd}
+            onDragEnd={onGeneralDragEnd}
             accessibility={{
               announcements: {
                 onDragStart({ active }) {
@@ -192,13 +235,13 @@ export function FormUI() {
               },
             }}
           >
-            <SortableContext items={fieldIds} strategy={verticalListSortingStrategy}>
+            <SortableContext items={generalFieldIds} strategy={verticalListSortingStrategy}>
               <div 
                 className="space-y-4"
                 role="region"
                 aria-label="Draggable form fields"
               >
-                {fields.map((field) => (
+                {generalFields.map((field) => (
                   <DraggableField key={field.id} field={field} />
                 ))}
               </div>
@@ -207,6 +250,60 @@ export function FormUI() {
           
           <div className="mt-4 text-sm text-gray-600">
             <p>💡 Tip: Drag the ☰ handle to reorder fields</p>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="settings" className="p-4 border rounded-md">
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-red-700 text-sm">{error}</p>
+              <button
+                onClick={resetFields}
+                className="mt-2 text-red-600 hover:text-red-800 text-sm underline"
+              >
+                Reset to original order
+              </button>
+            </div>
+          )}
+          
+          <DndContext 
+            collisionDetection={closestCenter} 
+            onDragEnd={onSettingsDragEnd}
+            accessibility={{
+              announcements: {
+                onDragStart({ active }) {
+                  return `Picked up ${active.id} field`;
+                },
+                onDragOver({ active, over }) {
+                  return `Moving ${active.id} field over ${over?.id || 'drop zone'}`;
+                },
+                onDragEnd({ active, over }) {
+                  if (over && active.id !== over.id) {
+                    return `Dropped ${active.id} field into new position`;
+                  }
+                  return `Dropped ${active.id} field`;
+                },
+                onDragCancel({ active }) {
+                  return `Cancelled dragging ${active.id} field`;
+                },
+              },
+            }}
+          >
+            <SortableContext items={settingsFieldIds} strategy={verticalListSortingStrategy}>
+              <div 
+                className="space-y-4"
+                role="region"
+                aria-label="Draggable settings fields"
+              >
+                {settingsFields.map((field) => (
+                  <DraggableField key={field.id} field={field} />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+          
+          <div className="mt-4 text-sm text-gray-600">
+            <p>💡 Tip: Drag the ☰ handle to reorder settings fields</p>
           </div>
         </TabsContent>
       </Tabs>
